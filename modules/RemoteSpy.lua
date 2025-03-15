@@ -29,10 +29,10 @@ local remotesViewing = {
 }
 
 local methodHooks = {
-    RemoteEvent = Instance.new("RemoteEvent").FireServer,
-    RemoteFunction = Instance.new("RemoteFunction").InvokeServer,
-    BindableEvent = Instance.new("BindableEvent").Fire,
-    BindableFunction = Instance.new("BindableFunction").Invoke
+    RemoteEvent = function() return Instance.new("RemoteEvent") end,
+    RemoteFunction = function() return Instance.new("RemoteFunction") end,
+    BindableEvent = function() return Instance.new("BindableEvent") end,
+    BindableFunction = function() return Instance.new("BindableFunction") end,
 }
 
 local currentRemotes = {}
@@ -97,26 +97,25 @@ nmcTrampoline = hookMetaMethod(game, "__namecall", function(...)
     return nmcTrampoline(...)
 end)
 
--- vuln fix
-
-local pcall = pcall
-
 local function checkPermission(instance)
-    if (instance.ClassName) then end
+    -- Implement permission checks as needed
 end
 
 for _name, hook in pairs(methodHooks) do
-    local originalMethod
-    originalMethod = hookFunction(hook, newCClosure(function(...)
+    local originalMethod = hook()
+    local originalMethodRef = originalMethod
+
+    originalMethod = hookFunction(originalMethod, newCClosure(function(...)
         local instance = ...
 
         if typeof(instance) ~= "Instance" then
-            return originalMethod(...)
+            return originalMethodRef(...)
         end
                 
-        do
-            local success = pcall(checkPermission, instance)
-            if (not success) then return originalMethod(...) end
+        local success, err = pcall(checkPermission, instance)
+        if not success then
+            warn("Permission check failed: " .. tostring(err))
+            return originalMethodRef(...)
         end
 
         if instance.ClassName == _name and remotesViewing[instance.ClassName] and instance ~= remoteDataEvent then
@@ -147,10 +146,10 @@ for _name, hook in pairs(methodHooks) do
             end
         end
         
-        return originalMethod(...)
+        return originalMethodRef(...)
     end))
 
-    oh.Hooks[originalMethod] = hook
+    oh.Hooks[originalMethod] = originalMethodRef
 end
 
 RemoteSpy.RemotesViewing = remotesViewing
